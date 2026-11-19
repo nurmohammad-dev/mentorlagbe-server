@@ -3,6 +3,7 @@ import "dotenv/config";
 import cors from "cors";
 import { connectToMongoDB } from "./config/db.js";
 import usersRoutes from "./routes/users.routes.js";
+import tuitionsRoutes from "./routes/tuitions.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,6 +17,7 @@ await connectToMongoDB();
 
 // Routes
 app.use("/api/users", usersRoutes);
+app.use("/api/tuitions", tuitionsRoutes);
 
 
 app.get("/", (req, res) => {
