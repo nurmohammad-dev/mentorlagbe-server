@@ -36,8 +36,12 @@ router.get("/stats", verifyToken, async (req, res) => {
         usersCollection.countDocuments({ role: "student" }),
         usersCollection.countDocuments({ role: "tutor" }),
         tuitionsCollection.countDocuments({}),
-        tuitionsCollection.countDocuments({ status: "pending" }),
-        tuitionsCollection.countDocuments({ status: "approved" }),
+        tuitionsCollection.countDocuments({
+          $or: [{ approvalStatus: "pending" }, { status: "pending" }],
+        }),
+        tuitionsCollection.countDocuments({
+          $or: [{ approvalStatus: "approved" }, { status: "approved" }],
+        }),
         applicationsCollection.countDocuments({}),
         paymentsCollection.find({}).toArray(),
         tuitionsCollection
@@ -77,10 +81,10 @@ router.get("/stats", verifyToken, async (req, res) => {
       ]);
 
       const approvedCount = myTuitions.filter(
-        (t) => t.status === "approved"
+        (t) => (t.approvalStatus || t.status) === "approved"
       ).length;
       const pendingTuitionCount = myTuitions.filter(
-        (t) => t.status === "pending"
+        (t) => (t.approvalStatus || t.status) === "pending"
       ).length;
       const acceptedApps = myApplications.filter(
         (a) => a.status === "accepted"
@@ -146,26 +150,27 @@ router.get("/stats", verifyToken, async (req, res) => {
   }
 });
 
-// 2. Admin: Seed initial sample tuitions for quick testing
+// 2. Admin: Seed 12 initial sample tuitions
 router.post("/seed", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { tuitionsCollection } = await getCollections();
 
     const sampleTuitions = [
       {
-        title: "HSC Physics & Higher Math Special Batch",
+        title: "HSC Physics & Higher Math Concept Batch",
         subject: "Physics",
         classLevel: "HSC",
         mode: "Offline",
         location: "Dhanmondi, Dhaka",
-        schedule: "Sat, Mon, Wed (5:00 PM - 6:30 PM)",
+        daysPerWeek: "3 days/week",
         monthlyFee: 6000,
-        totalSeats: 4,
         description:
-          "Concept-focused HSC Physics preparation with weekly CQ and MCQ model tests.",
+          "In-depth HSC Physics problem solving with weekly CQ & MCQ board standard exams.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=900&q=80",
         tutorName: "Tanvir Ahmed",
         tutorEmail: "tanvir.tutor@mentorlagbe.com",
-        status: "approved",
+        approvalStatus: "approved",
         isActive: true,
         createdAt: new Date(),
       },
@@ -175,14 +180,51 @@ router.post("/seed", verifyToken, verifyAdmin, async (req, res) => {
         classLevel: "SSC",
         mode: "Offline",
         location: "Uttara, Dhaka",
-        schedule: "Sun, Tue, Thu (4:30 PM - 6:00 PM)",
+        daysPerWeek: "4 days/week",
         monthlyFee: 5000,
-        totalSeats: 3,
         description:
-          "Step-by-step problem solving and board question analysis for SSC candidates.",
+          "Step-by-step algebra, geometry, and trigonometry mastery for SSC candidates.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=900&q=80",
         tutorName: "Nusrat Jahan",
         tutorEmail: "nusrat.tutor@mentorlagbe.com",
-        status: "approved",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "IELTS Academic Writing & Speaking Intensive",
+        subject: "IELTS",
+        classLevel: "All Levels",
+        mode: "Online",
+        location: "Online (Zoom)",
+        daysPerWeek: "3 days/week",
+        monthlyFee: 6500,
+        description:
+          "Personalized Task 1 & Task 2 essay evaluations plus 1-on-1 speaking mock tests.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Rafiqul Islam",
+        tutorEmail: "rafiq.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "HSC Chemistry 1st & 2nd Paper Special Care",
+        subject: "Chemistry",
+        classLevel: "HSC",
+        mode: "Offline",
+        location: "Mirpur, Dhaka",
+        daysPerWeek: "3 days/week",
+        monthlyFee: 5500,
+        description:
+          "Organic reaction mechanisms and quantitative chemistry explained with clarity.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Sadia Rahman",
+        tutorEmail: "sadia.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
         isActive: true,
         createdAt: new Date(),
       },
@@ -191,66 +233,142 @@ router.post("/seed", verifyToken, verifyAdmin, async (req, res) => {
         subject: "English",
         classLevel: "O-Level",
         mode: "Online",
-        location: "Online (Zoom)",
-        schedule: "Fri, Sat (7:00 PM - 8:30 PM)",
+        location: "Online (Google Meet)",
+        daysPerWeek: "2 days/week",
         monthlyFee: 5500,
-        totalSeats: 5,
         description:
-          "Cambridge O-Level essay writing, comprehension, and spoken fluency sessions.",
-        tutorName: "Rafiqul Islam",
-        tutorEmail: "rafiq.tutor@mentorlagbe.com",
-        status: "approved",
+          "Cambridge syllabus comprehension, directed writing, and grammar precision.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Farhana Akter",
+        tutorEmail: "farhana.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
         isActive: true,
         createdAt: new Date(),
       },
       {
-        title: "HSC Chemistry 1st & 2nd Paper Intensive",
-        subject: "Chemistry",
-        classLevel: "HSC",
-        mode: "Hybrid",
-        location: "Mirpur, Dhaka",
-        schedule: "Mon, Wed, Fri (6:00 PM - 7:30 PM)",
-        monthlyFee: 5500,
-        totalSeats: 4,
-        description:
-          "Organic chemistry reaction mechanisms and quantitative chemistry mastery.",
-        tutorName: "Sadia Rahman",
-        tutorEmail: "sadia.tutor@mentorlagbe.com",
-        status: "approved",
-        isActive: true,
-        createdAt: new Date(),
-      },
-      {
-        title: "Class 8 All Subjects Foundation Care",
-        subject: "Science",
-        classLevel: "Class 8",
-        mode: "Offline",
-        location: "Mohammadpur, Dhaka",
-        schedule: "Sat, Mon, Wed (4:00 PM - 5:30 PM)",
-        monthlyFee: 4000,
-        totalSeats: 2,
-        description:
-          "Strong foundation building in Science, Mathematics, and English grammar.",
-        tutorName: "Mahmudul Hasan",
-        tutorEmail: "mahmud.tutor@mentorlagbe.com",
-        status: "approved",
-        isActive: true,
-        createdAt: new Date(),
-      },
-      {
-        title: "HSC ICT Programming & Database Practical",
+        title: "HSC ICT C-Programming & SQL Practical Batch",
         subject: "ICT",
         classLevel: "HSC",
         mode: "Online",
-        location: "Online (Google Meet)",
-        schedule: "Tue, Thu (8:00 PM - 9:30 PM)",
+        location: "Online (Zoom)",
+        daysPerWeek: "3 days/week",
         monthlyFee: 3500,
-        totalSeats: 6,
         description:
-          "Hands-on C programming, HTML, SQL database, and number system tutorials.",
-        tutorName: "Farhana Akter",
-        tutorEmail: "farhana.tutor@mentorlagbe.com",
-        status: "approved",
+          "Hands-on C coding, HTML web design, number systems, and database queries.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Mahmudul Hasan",
+        tutorEmail: "mahmud.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "Class 9–10 General Science & Biology Foundation",
+        subject: "Biology",
+        classLevel: "SSC",
+        mode: "Offline",
+        location: "Mohammadpur, Dhaka",
+        daysPerWeek: "3 days/week",
+        monthlyFee: 4500,
+        description:
+          "Diagram-based biology learning and conceptual clarity for secondary students.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Dr. Ayesha Siddiqua",
+        tutorEmail: "ayesha.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "A-Level Pure Mathematics & Mechanics",
+        subject: "Mathematics",
+        classLevel: "A-Level",
+        mode: "Online",
+        location: "Online (Zoom)",
+        daysPerWeek: "3 days/week",
+        monthlyFee: 8000,
+        description:
+          "Edexcel & Cambridge past paper drills for P1, P2, P3, and M1 modules.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1596495578065-6e0763fa1178?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Tariqul Alam",
+        tutorEmail: "tariq.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "Spoken English & Presentation Skills for Students",
+        subject: "English",
+        classLevel: "All Levels",
+        mode: "Online",
+        location: "Online (Google Meet)",
+        daysPerWeek: "2 days/week",
+        monthlyFee: 3000,
+        description:
+          "Interactive speaking drills, pronunciation refinement, and public speaking confidence.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Maliha Chowdhury",
+        tutorEmail: "maliha.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "Class 8 Mathematics & English Core Care",
+        subject: "Mathematics",
+        classLevel: "Class 8",
+        mode: "Offline",
+        location: "Banani, Dhaka",
+        daysPerWeek: "4 days/week",
+        monthlyFee: 5000,
+        description:
+          "Strong academic habits, weekly progress feedback, and school exam readiness.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Rakin Hasan",
+        tutorEmail: "rakin.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "HSC Accounting & Finance Board Preparation",
+        subject: "Accounting",
+        classLevel: "HSC",
+        mode: "Offline",
+        location: "Bashundhara R/A, Dhaka",
+        daysPerWeek: "3 days/week",
+        monthlyFee: 4500,
+        description:
+          "Financial statements, ledger balancing, and business math made simple.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Kamrul Islam",
+        tutorEmail: "kamrul.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
+        isActive: true,
+        createdAt: new Date(),
+      },
+      {
+        title: "Python Programming & Problem Solving for Beginners",
+        subject: "Programming",
+        classLevel: "All Levels",
+        mode: "Online",
+        location: "Online (Zoom)",
+        daysPerWeek: "2 days/week",
+        monthlyFee: 4000,
+        description:
+          "Learn Python fundamentals, logic building, and mini-projects from scratch.",
+        bannerImage:
+          "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=900&q=80",
+        tutorName: "Zarif Hossain",
+        tutorEmail: "zarif.tutor@mentorlagbe.com",
+        approvalStatus: "approved",
         isActive: true,
         createdAt: new Date(),
       },

@@ -106,8 +106,8 @@ router.post("/create-checkout-session", verifyToken, async (req, res) => {
         userRole: role,
         planName,
       },
-      success_url: `${CLIENT_URL}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${CLIENT_URL}/dashboard/subscription`,
+      success_url: `${CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${CLIENT_URL}/payment/cancel`,
     });
 
     res.json({ url: session.url, sessionId: session.id });
@@ -117,16 +117,20 @@ router.post("/create-checkout-session", verifyToken, async (req, res) => {
   }
 });
 
-// 2. Stripe Webhook (must receive raw body in index.js)
+// 2. Optional Stripe Webhook handler (kept exported so index.js runs smoothly)
 export async function stripeWebhookHandler(req, res) {
-  const sig = req.headers["stripe-signature"];
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(200).json({ received: true });
+  }
 
+  const sig = req.headers["stripe-signature"];
   let event;
+
   try {
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
-      process.env.STRIPE_PUBLISHABLE_KEY
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
     console.error("Webhook signature verification failed:", err.message);
@@ -143,7 +147,7 @@ export async function stripeWebhookHandler(req, res) {
   res.json({ received: true });
 }
 
-// 3. Confirm session from success page (backup for local testing without webhook CLI)
+// 3. Verify & Confirm Stripe Checkout Session on /payment/success
 router.post("/confirm-session", verifyToken, async (req, res) => {
   try {
     const { sessionId } = req.body;

@@ -12,6 +12,7 @@ router.get("/", async (req, res) => {
     const { tuitionsCollection } = await getCollections();
     const {
       search = "",
+      q = "",
       subject = "",
       classLevel = "",
       mode = "",
@@ -22,37 +23,46 @@ router.get("/", async (req, res) => {
       limit = 9,
     } = req.query;
 
-    const query = {
-      status: "approved",
-      isActive: true,
-    };
+    const searchTerm = search || q;
 
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { subject: { $regex: search, $options: "i" } },
-        { location: { $regex: search, $options: "i" } },
-        { tutorName: { $regex: search, $options: "i" } },
-      ];
+    const andConditions = [
+      { $or: [{ approvalStatus: "approved" }, { status: "approved" }] },
+      { isActive: true },
+    ];
+
+    if (searchTerm) {
+      andConditions.push({
+        $or: [
+          { title: { $regex: searchTerm, $options: "i" } },
+          { subject: { $regex: searchTerm, $options: "i" } },
+          { location: { $regex: searchTerm, $options: "i" } },
+          { tutorName: { $regex: searchTerm, $options: "i" } },
+        ],
+      });
     }
 
     if (subject) {
-      query.subject = { $regex: `^${subject}$`, $options: "i" };
+      andConditions.push({ subject: { $regex: `^${subject}$`, $options: "i" } });
     }
 
     if (classLevel) {
-      query.classLevel = { $regex: `^${classLevel}$`, $options: "i" };
+      andConditions.push({
+        classLevel: { $regex: `^${classLevel}$`, $options: "i" },
+      });
     }
 
     if (mode) {
-      query.mode = { $regex: `^${mode}$`, $options: "i" };
+      andConditions.push({ mode: { $regex: `^${mode}$`, $options: "i" } });
     }
 
     if (minFee || maxFee) {
-      query.monthlyFee = {};
-      if (minFee) query.monthlyFee.$gte = Number(minFee);
-      if (maxFee) query.monthlyFee.$lte = Number(maxFee);
+      const feeFilter = {};
+      if (minFee) feeFilter.$gte = Number(minFee);
+      if (maxFee) feeFilter.$lte = Number(maxFee);
+      andConditions.push({ monthlyFee: feeFilter });
     }
+
+    const query = { $and: andConditions };
 
     let sortOption = { createdAt: -1 };
     if (sort === "fee-asc") sortOption = { monthlyFee: 1 };
@@ -98,7 +108,7 @@ router.get("/my-tuitions", verifyToken, verifyTutor, async (req, res) => {
   }
 });
 
-// 3. Admin: Get all tuitions for moderation (pending, approved, rejected)
+// 3. Admin: Get all tuitions for moderation
 router.get("/admin/all", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { tuitionsCollection } = await getCollections();
@@ -134,7 +144,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// 5. Tutor: Post a new tuition (default status: "pending", isActive: true)
+// 5. Tutor: Post a new tuition (Free plan limit: max 2 tuitions)
 router.post("/", verifyToken, verifyTutor, async (req, res) => {
   try {
     const { usersCollection, tuitionsCollection } = await getCollections();
@@ -143,15 +153,14 @@ router.post("/", verifyToken, verifyTutor, async (req, res) => {
     const tutor = await usersCollection.findOne({ email: tutorEmail });
     const plan = tutor?.plan || "free";
 
-    // Free plan tutors can post up to 3 tuitions; Pro plan has unlimited posts
     if (plan !== "pro") {
       const existingCount = await tuitionsCollection.countDocuments({
         tutorEmail,
       });
-      if (existingCount >= 3) {
+      if (existingCount >= 2) {
         return res.status(403).json({
           message:
-            "Free plan limit reached (max 3 tuitions). Upgrade to Pro for unlimited posts.",
+            "Free plan limit reached (max 2 tuitions). Upgrade to Pro for unlimited posts.",
         });
       }
     }
@@ -162,10 +171,11 @@ router.post("/", verifyToken, verifyTutor, async (req, res) => {
       classLevel,
       mode,
       location,
+      daysPerWeek,
       schedule,
       monthlyFee,
-      totalSeats,
       description,
+      bannerImage,
       image,
     } = req.body;
 
@@ -181,15 +191,14 @@ router.post("/", verifyToken, verifyTutor, async (req, res) => {
       classLevel,
       mode: mode || "Offline",
       location: location || "Dhaka",
-      schedule: schedule || "",
+      daysPerWeek: daysPerWeek || schedule || "3 days/week",
       monthlyFee: Number(monthlyFee),
-      totalSeats: Number(totalSeats) || 1,
       description: description || "",
-      image: image || "",
+      bannerImage: bannerImage || image || "",
       tutorName: tutor?.name || req.user.name || "Tutor",
       tutorEmail,
       tutorImage: tutor?.image || req.user.image || "",
-      status: "pending",
+      approvalStatus: "pending",
       isActive: true,
       createdAt: new Date(),
     };
@@ -231,11 +240,10 @@ router.patch("/:id", verifyToken, verifyTutor, async (req, res) => {
       classLevel,
       mode,
       location,
-      schedule,
+      daysPerWeek,
       monthlyFee,
-      totalSeats,
       description,
-      image,
+      bannerImage,
       isActive,
     } = req.body;
 
@@ -245,11 +253,10 @@ router.patch("/:id", verifyToken, verifyTutor, async (req, res) => {
       ...(classLevel !== undefined && { classLevel }),
       ...(mode !== undefined && { mode }),
       ...(location !== undefined && { location }),
-      ...(schedule !== undefined && { schedule }),
+      ...(daysPerWeek !== undefined && { daysPerWeek }),
       ...(monthlyFee !== undefined && { monthlyFee: Number(monthlyFee) }),
-      ...(totalSeats !== undefined && { totalSeats: Number(totalSeats) }),
       ...(description !== undefined && { description }),
-      ...(image !== undefined && { image }),
+      ...(bannerImage !== undefined && { bannerImage }),
       ...(isActive !== undefined && { isActive: Boolean(isActive) }),
       updatedAt: new Date(),
     };
@@ -269,13 +276,13 @@ router.patch("/:id", verifyToken, verifyTutor, async (req, res) => {
 router.patch("/:id/status", verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const nextStatus = req.body.approvalStatus || req.body.status;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid tuition ID" });
     }
 
-    if (!["approved", "rejected"].includes(status)) {
+    if (!["approved", "rejected"].includes(nextStatus)) {
       return res
         .status(400)
         .json({ message: "Status must be either 'approved' or 'rejected'" });
@@ -284,14 +291,14 @@ router.patch("/:id/status", verifyToken, verifyAdmin, async (req, res) => {
     const { tuitionsCollection } = await getCollections();
     const result = await tuitionsCollection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: { status, updatedAt: new Date() } }
+      { $set: { approvalStatus: nextStatus, updatedAt: new Date() } }
     );
 
     if (result.matchedCount === 0) {
       return res.status(404).json({ message: "Tuition not found" });
     }
 
-    res.json({ message: `Tuition ${status} successfully` });
+    res.json({ message: `Tuition ${nextStatus} successfully` });
   } catch (err) {
     res.status(500).json({ message: "Failed to update tuition status" });
   }
