@@ -8,29 +8,31 @@ import applicationsRoutes from "./routes/applications.routes.js";
 import paymentsRoutes, {
   stripeWebhookHandler,
 } from "./routes/payments.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 
+// Stripe Webhook MUST come before express.json()
 app.post(
   "/api/payments/webhook",
   express.raw({ type: "application/json" }),
   stripeWebhookHandler
 );
 
-// Parse JSON for all other routes
 app.use(express.json());
 
-// Connect to MongoDB when the server starts
+// Connect to MongoDB
 await connectToMongoDB();
 
-// Routes
+// API Routes
 app.use("/api/users", usersRoutes);
 app.use("/api/tuitions", tuitionsRoutes);
 app.use("/api/applications", applicationsRoutes);
 app.use("/api/payments", paymentsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // Health check route
 app.get("/", (req, res) => {
