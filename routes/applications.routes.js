@@ -53,7 +53,9 @@ router.post("/", verifyToken, verifyStudent, async (req, res) => {
       return res.status(404).json({ message: "Tuition not found" });
     }
 
-    if (tuition.status !== "approved" || !tuition.isActive) {
+    const approvalStatus = tuition.approvalStatus || tuition.status;
+
+    if (approvalStatus !== "approved" || tuition.isActive === false) {
       return res
         .status(400)
         .json({ message: "This tuition is not accepting applications" });
