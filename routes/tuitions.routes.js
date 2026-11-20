@@ -124,7 +124,7 @@ router.get("/admin/all", verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // 4. Public: Get single tuition details by ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", verifyToken, async (req, res) => {
   try {
     const { id } = req.params;
     if (!ObjectId.isValid(id)) {
